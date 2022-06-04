@@ -21,10 +21,8 @@ namespace HGV.Euls.Server.Functions
         {
             try
             {
-                using var reader = new StreamReader(req.Body);
-                var json = await reader.ReadToEndAsync();
+                var json = await req.ReadAsStringAsync();
                 var root = JsonConvert.DeserializeObject<Root>(json);
-
                 await events.AddAsync(root);
             } 
             catch(Exception ex)

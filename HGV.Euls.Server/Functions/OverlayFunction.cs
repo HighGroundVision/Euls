@@ -28,8 +28,8 @@ namespace HGV.Euls.Server.Functions
             string token,
             ILogger log)
         {
-            var url = $"/api/overlay/{token}"; // ?t={DateTime.UtcNow.ToFileTime()}
-            return new ContentResult { Content = $"<html><head><meta http-equiv=\"refresh\" content=\"60\"></head><body><img src=\"{url}\" /></body></html>", ContentType = "text/html" };
+            var url = $"/api/overlay/{token}";
+            return new ContentResult { Content = $"<html><head></head><body><img src=\"{url}\" /></body></html>", ContentType = "text/html" };
         }
     }
 }
