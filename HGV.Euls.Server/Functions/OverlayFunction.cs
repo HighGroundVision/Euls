@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Primitives;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -23,10 +24,15 @@ namespace HGV.Euls.Server.Functions
             if (!client.CanGenerateSasUri)
                 return new BadRequestResult();
 
-            // 
+            if (token == "abc123")
+                return new BadRequestResult();
+
+            var refresh = "10";
+            var query = req.GetQueryParameterDictionary();
+            query.TryGetValue("refresh", out refresh);
 
             var uri = client.GenerateSasUri(Azure.Storage.Sas.BlobSasPermissions.Read, expiresOn: System.DateTimeOffset.UtcNow.AddHours(1));
-            return new ContentResult { Content = $"<html><head><META HTTP-EQUIV=\"refresh\" CONTENT=\"10\"><style>body {{ background - color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }}</style></head><body><img src=\"{uri}\" /></body></html>", ContentType = "text/html" };
+            return new ContentResult { Content = $"<html><head><META HTTP-EQUIV=\"refresh\" CONTENT=\"{refresh}\"><style>body {{ background - color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }}</style></head><body><img src=\"{uri}\" /></body></html>", ContentType = "text/html" };
         }
 
         [FunctionName("OverlayDire")]
@@ -41,8 +47,15 @@ namespace HGV.Euls.Server.Functions
             if (!client.CanGenerateSasUri)
                 return new BadRequestResult();
 
+            if (token == "abc123")
+                return new BadRequestResult();
+
+            var refresh = "10";
+            var query = req.GetQueryParameterDictionary();
+            query.TryGetValue("refresh", out refresh);
+
             var uri = client.GenerateSasUri(Azure.Storage.Sas.BlobSasPermissions.Read, expiresOn: System.DateTimeOffset.UtcNow.AddHours(1));
-            return new ContentResult { Content = $"<html><head><META HTTP-EQUIV=\"refresh\" CONTENT=\"10\"><style>body {{ background - color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }}</style></head><body><img src=\"{uri}\" /></body></html>", ContentType = "text/html" };
+            return new ContentResult { Content = $"<html><head><META HTTP-EQUIV=\"refresh\" CONTENT=\"{refresh}\"><style>body {{ background - color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }}</style></head><body><img src=\"{uri}\" /></body></html>", ContentType = "text/html" };
         }
     }
 }
