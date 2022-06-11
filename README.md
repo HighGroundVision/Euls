@@ -1,6 +1,8 @@
 # Euls
 A dota2 Ability Draft Broadcasting overlay.
 
+![Search](docs/sample.png)
+
 Install Steps
 1. go to the following directory (create it if you need to) dota 2 beta\game\dota\cfg\gamestate_integration
 2. Create a gamestate_integration_hgv.cfg file into the director in step 1.
