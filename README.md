@@ -37,7 +37,7 @@ Install Steps
 
 3. Enabled GSI.
 
-![alt text](https://s3.amazonaws.com/cdn.freshdesk.com/data/helpdesk/attachments/production/9153979246/original/vTeUh6O_Xpuqgn0iAfJWrBDa7rjQ8R2odw.png?1647271773)
+![Enable GSI](docs/enable-gsi.png)
 
 4. Add a browser source to Stream Labs for Radiant Team with the following properties:
 - URL: https://euls.azurewebsites.net/api/overlay/radiant/abc123
