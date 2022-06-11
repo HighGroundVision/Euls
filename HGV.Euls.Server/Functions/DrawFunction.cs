@@ -1,13 +1,15 @@
+using Azure.Storage.Blobs;
 using HGV.Basilius;
 using HGV.Basilius.Client;
 using HGV.Euls.Server.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 using Polly;
-using Polly.Registry;
+using Polly.Caching;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -15,18 +17,21 @@ using System.Threading.Tasks;
 
 namespace HGV.Euls.Server
 {
+    using Pair = Tuple<Bitmap, List<Tuple<Bitmap, bool>>>;
+
     public class DrawFunction
     {
+        private readonly Size size;
         private readonly HttpClient httpClient;
-        private IReadOnlyDictionary<int, Hero> heroes;
-        private IReadOnlyDictionary<string, Ability> abilities;
-        private IAsyncPolicy<byte[]> cachePolicy;
+        private readonly IReadOnlyDictionary<int, Hero> heroes;
+        private readonly IReadOnlyDictionary<string, Ability> abilities;
+        private readonly IAsyncCacheProvider cacheProvider;
 
-        public DrawFunction(IHttpClientFactory httpClientFactory, IReadOnlyPolicyRegistry<string> policyRegistry, IMetaClient metaClient)
+        public DrawFunction(IHttpClientFactory httpClientFactory, IAsyncCacheProvider cacheProvider, IMetaClient metaClient)
         {
             this.httpClient = httpClientFactory.CreateClient();
-            this.cachePolicy = policyRegistry.Get<IAsyncPolicy<byte[]>>("Hyperstone");
-
+            this.cacheProvider = cacheProvider;
+            this.size = new Size(64, 64);
             this.heroes = metaClient.GetHeroes().ToDictionary(_ => _.Id, _ => _);
             this.abilities = metaClient.GetAbilities().ToDictionary(_ => _.Key, _ => _);
         }
@@ -34,13 +39,15 @@ namespace HGV.Euls.Server
         [FunctionName("Draw")]
         public async Task Draw(
             [QueueTrigger("events")] Root root,
-            [Blob("drafts/{token}.png", FileAccess.Write)] Stream stream,
+            [Blob("drafts/radiant-{token}.png", FileAccess.ReadWrite)] BlobClient radiant,
+            [Blob("drafts/dire-{token}.png", FileAccess.ReadWrite)] BlobClient dire,
             ILogger log
         )
         {
             try
             {
-                await DrawOverlayImage(root, stream);
+                await DrawOverlayRadiantImages(root, radiant);
+                await DrawOverlayDireImages(root, dire);
             }
             catch(Exception ex)
             {
@@ -48,231 +55,168 @@ namespace HGV.Euls.Server
             }
         }
 
-        private async Task DrawOverlayImage(Root root, Stream stream)
+        private async Task DrawOverlayRadiantImages(Root root, BlobClient client)
         {
-            var heroes = new List<int>()
-            {
-                root.Heroes.Radiant.Player0.Id.GetValueOrDefault(),
-                root.Heroes.Radiant.Player1.Id.GetValueOrDefault(),
-                root.Heroes.Radiant.Player2.Id.GetValueOrDefault(),
-                root.Heroes.Radiant.Player3.Id.GetValueOrDefault(),
-                root.Heroes.Radiant.Player4.Id.GetValueOrDefault(),
-                root.Heroes.Dire.Player5.Id.GetValueOrDefault(),
-                root.Heroes.Dire.Player6.Id.GetValueOrDefault(),
-                root.Heroes.Dire.Player7.Id.GetValueOrDefault(),
-                root.Heroes.Dire.Player8.Id.GetValueOrDefault(),
-                root.Heroes.Dire.Player9.Id.GetValueOrDefault(),
-            }
-            .Join(this.heroes, id => id, _ => _.Key, (lhs, rhs) => rhs.Value)
-            .ToList();
+            var heroes = new List<Pair>();
+            heroes.Add(await GetPlayer(root.Heroes.Radiant.Player0, root.Abilities.Radiant.Player0));
+            heroes.Add(await GetPlayer(root.Heroes.Radiant.Player1, root.Abilities.Radiant.Player1));
+            heroes.Add(await GetPlayer(root.Heroes.Radiant.Player2, root.Abilities.Radiant.Player2));
+            heroes.Add(await GetPlayer(root.Heroes.Radiant.Player3, root.Abilities.Radiant.Player3));
+            heroes.Add(await GetPlayer(root.Heroes.Radiant.Player4, root.Abilities.Radiant.Player4));
+            await DrawCard(client, heroes);
+        }
 
-            var upgrades = new List<(bool, bool)>()
-            {
-                (root.Heroes.Radiant.Player0.AghanimsScepter.GetValueOrDefault(), root.Heroes.Radiant.Player0.AghanimsShard.GetValueOrDefault()),
-                (root.Heroes.Radiant.Player1.AghanimsScepter.GetValueOrDefault(), root.Heroes.Radiant.Player1.AghanimsShard.GetValueOrDefault()),
-                (root.Heroes.Radiant.Player2.AghanimsScepter.GetValueOrDefault(), root.Heroes.Radiant.Player2.AghanimsShard.GetValueOrDefault()),
-                (root.Heroes.Radiant.Player3.AghanimsScepter.GetValueOrDefault(), root.Heroes.Radiant.Player3.AghanimsShard.GetValueOrDefault()),
-                (root.Heroes.Radiant.Player4.AghanimsScepter.GetValueOrDefault(), root.Heroes.Radiant.Player4.AghanimsShard.GetValueOrDefault()),
-                (root.Heroes.Dire.Player5.AghanimsScepter.GetValueOrDefault(), root.Heroes.Dire.Player5.AghanimsShard.GetValueOrDefault()),
-                (root.Heroes.Dire.Player6.AghanimsScepter.GetValueOrDefault(), root.Heroes.Dire.Player6.AghanimsShard.GetValueOrDefault()),
-                (root.Heroes.Dire.Player7.AghanimsScepter.GetValueOrDefault(), root.Heroes.Dire.Player7.AghanimsShard.GetValueOrDefault()),
-                (root.Heroes.Dire.Player8.AghanimsScepter.GetValueOrDefault(), root.Heroes.Dire.Player8.AghanimsShard.GetValueOrDefault()),
-                (root.Heroes.Dire.Player9.AghanimsScepter.GetValueOrDefault(), root.Heroes.Dire.Player9.AghanimsShard.GetValueOrDefault()),
-            };
+        private async Task DrawOverlayDireImages(Root root, BlobClient client)
+        {
+            var heroes = new List<Pair>();
+            heroes.Add(await GetPlayer(root.Heroes.Dire.Player5, root.Abilities.Dire.Player5));
+            heroes.Add(await GetPlayer(root.Heroes.Dire.Player6, root.Abilities.Dire.Player6));
+            heroes.Add(await GetPlayer(root.Heroes.Dire.Player7, root.Abilities.Dire.Player7));
+            heroes.Add(await GetPlayer(root.Heroes.Dire.Player8, root.Abilities.Dire.Player8));
+            heroes.Add(await GetPlayer(root.Heroes.Dire.Player9, root.Abilities.Dire.Player9));
+            await DrawCard(client, heroes);
+        }
 
-            var collection = new List<List<AbilityInfo>>()
-            {
-                new List<AbilityInfo>()
-                {
-                    root.Abilities.Radiant.Player0.Ability0,
-                    root.Abilities.Radiant.Player0.Ability1,
-                    root.Abilities.Radiant.Player0.Ability2,
-                    root.Abilities.Radiant.Player0.Ability3,
-                    root.Abilities.Radiant.Player0.Ability4,
-                    root.Abilities.Radiant.Player0.Ability5,
-                },
-                new List<AbilityInfo>()
-                {
-                    root.Abilities.Radiant.Player1.Ability0,
-                    root.Abilities.Radiant.Player1.Ability1,
-                    root.Abilities.Radiant.Player1.Ability2,
-                    root.Abilities.Radiant.Player1.Ability3,
-                    root.Abilities.Radiant.Player1.Ability4,
-                    root.Abilities.Radiant.Player1.Ability5,
-                },
-                new List<AbilityInfo>()
-                {
-                    root.Abilities.Radiant.Player2.Ability0,
-                    root.Abilities.Radiant.Player2.Ability1,
-                    root.Abilities.Radiant.Player2.Ability2,
-                    root.Abilities.Radiant.Player2.Ability3,
-                    root.Abilities.Radiant.Player2.Ability4,
-                    root.Abilities.Radiant.Player2.Ability5,
-                },
-                new List<AbilityInfo>()
-                {
-                    root.Abilities.Radiant.Player3.Ability0,
-                    root.Abilities.Radiant.Player3.Ability1,
-                    root.Abilities.Radiant.Player3.Ability2,
-                    root.Abilities.Radiant.Player3.Ability3,
-                    root.Abilities.Radiant.Player3.Ability4,
-                    root.Abilities.Radiant.Player3.Ability5,
-                },
-                new List<AbilityInfo>()
-                {
-                    root.Abilities.Radiant.Player4.Ability0,
-                    root.Abilities.Radiant.Player4.Ability1,
-                    root.Abilities.Radiant.Player4.Ability2,
-                    root.Abilities.Radiant.Player4.Ability3,
-                    root.Abilities.Radiant.Player4.Ability4,
-                    root.Abilities.Radiant.Player4.Ability5,
-                },
-                new List<AbilityInfo>()
-                {
-                    root.Abilities.Dire.Player5.Ability0,
-                    root.Abilities.Dire.Player5.Ability1,
-                    root.Abilities.Dire.Player5.Ability2,
-                    root.Abilities.Dire.Player5.Ability3,
-                    root.Abilities.Dire.Player5.Ability4,
-                    root.Abilities.Dire.Player5.Ability5,
-                },
-                new List<AbilityInfo>()
-                {
-                    root.Abilities.Dire.Player6.Ability0,
-                    root.Abilities.Dire.Player6.Ability1,
-                    root.Abilities.Dire.Player6.Ability2,
-                    root.Abilities.Dire.Player6.Ability3,
-                    root.Abilities.Dire.Player6.Ability4,
-                    root.Abilities.Dire.Player6.Ability5,
-                },
-                new List<AbilityInfo>()
-                {
-                    root.Abilities.Dire.Player7.Ability0,
-                    root.Abilities.Dire.Player7.Ability1,
-                    root.Abilities.Dire.Player7.Ability2,
-                    root.Abilities.Dire.Player7.Ability3,
-                    root.Abilities.Dire.Player7.Ability4,
-                    root.Abilities.Dire.Player7.Ability5,
-                },
-                new List<AbilityInfo>()
-                {
-                    root.Abilities.Dire.Player8.Ability0,
-                    root.Abilities.Dire.Player8.Ability1,
-                    root.Abilities.Dire.Player8.Ability2,
-                    root.Abilities.Dire.Player8.Ability3,
-                    root.Abilities.Dire.Player8.Ability4,
-                    root.Abilities.Dire.Player8.Ability5,
-                },
-                new List<AbilityInfo>()
-                {
-                    root.Abilities.Dire.Player9.Ability0,
-                    root.Abilities.Dire.Player9.Ability1,
-                    root.Abilities.Dire.Player9.Ability2,
-                    root.Abilities.Dire.Player9.Ability3,
-                    root.Abilities.Dire.Player9.Ability4,
-                    root.Abilities.Dire.Player9.Ability5,
-                }
-            };
+        private async Task DrawCard(BlobClient client, List<Pair> heroes)
+        {
+            SolidBrush brush = new SolidBrush(Color.FromArgb(150, Color.Black));
 
-            var denyList = new List<int>() { 8034, 8035 };
-
-            var abilities = new Dictionary<int, List<Ability>>();
-            for (int i = 0; i < collection.Count; i++)
-            {
-                var list = collection[i]
-                    .Join(this.abilities, _ => _.Name, _ => _.Key, (lhs, rhs) => rhs.Value)
-                    .Where(_ => denyList.Contains(_.Id) == false)
-                    .Where(_ => _.IsGrantedByScepter == false)
-                    .Where(_ => _.IsGrantedByShard == false)
-                    .OrderBy(_ => _.IsUltimate)
-                    .ToList();
-
-                abilities.Add(i, list);
-            }
-
-            (Bitmap both, Bitmap shard, Bitmap scepter) = await GetUpgradesOverlays();
-
-            using var b1 = new SolidBrush(Color.FromArgb(255, 18, 133, 41));
-            using var b1a = new SolidBrush(Color.FromArgb(90, 18, 133, 41));
-            using var b2 = new SolidBrush(Color.FromArgb(255, 167, 50, 47));
-            using var b2a = new SolidBrush(Color.FromArgb(90, 167, 50, 47));
-
-            using var bitmap = new Bitmap(1920, 1080);
+            using var bitmap = new Bitmap(500, 350);
             using (var g = Graphics.FromImage(bitmap))
             {
-                var sizeA = 64; // 32
-                var sizeH = 0; // 54 // 108
+                g.Clear(Color.Transparent);
 
-                for (int i = 0; i < heroes.Count; i++)
+                try
                 {
-                    var top = i < 5 ? 150 : 260;
-                    var url = heroes[i].ImageIcon;
-
-                    var image = await GetCachedImage(url);
-
-                    var dest = new Rectangle(1920 - (sizeA * 5) - 10, top + (2 * i) + (i * sizeA), sizeA, sizeA);
-                    g.DrawImage(image, dest);
-                }
-
-                for (int p = 0; p < abilities.Count; p++)
-                {
-                    var list = abilities[p];
-                    for (int a = 0; a < list.Count; a++)
+                    var max = heroes.Max(_ => _.Item2.Count);
+                    var offset = 500 - ((max * this.size.Width) + max + this.size.Width);
+                    var y = 1;
+                    foreach (var pair in heroes)
                     {
-                        var ability = list[a];
-                        var image = await GetCachedImage(ability.Image);
+                        var x = offset;
 
-                        var x = a;
-                        var y = p;
-                        var top = y < 5 ? 150 : 260;
-                        var left = (1920 - sizeH) - (sizeA * 4) - (2 * 4);
+                        if(pair.Item1 is not null)
+                        {
+                            g.DrawImage(pair.Item1, new Rectangle(new Point(x, y), size));
+                        }
+                        
+                        x += size.Width + 1;
 
-                        var dest = new Rectangle(left + (x * sizeA) + (2 * x), top + (2 * y) + (y * sizeA), sizeA, sizeA); // 1721
-                        g.DrawImage(image, dest);
+                        foreach (var ability in pair.Item2)
+                        {
+                            var rect = new Rectangle(new Point(x, y), size);
+                            g.DrawImage(ability.Item1, rect);
 
-                        var hasScepterUpgrade = ability.HasScepterUpgrade || ability.IsGrantedByScepter;
-                        var hasShardUpgrade = ability.HasShardUpgrade || ability.IsGrantedByShard;
-                        (bool hasScepter, bool hasShard) = upgrades[y];
-                        if (hasScepterUpgrade && hasScepter && hasShardUpgrade && hasShard)
-                            g.DrawImage(both, dest);
-                        else if (hasScepterUpgrade && hasScepter)
-                            g.DrawImage(scepter, dest);
-                        else if (hasShardUpgrade && hasShard)
-                            g.DrawImage(shard, dest);
+                            if (ability.Item2 == false)
+                            {
+                                g.FillRectangle(brush, rect);
+                            }
+
+                            x += size.Width + 1;
+                        }
+
+                        y += size.Height + 1;
                     }
+                }
+                catch (Exception ex)
+                {
                 }
             }
 
-            bitmap.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
+            var ms = new MemoryStream();
+            bitmap.Save(ms, ImageFormat.Png);
+            ms.Seek(0, SeekOrigin.Begin);
+            await client.UploadAsync(ms, true);
+        }
+
+        private async Task<Pair> GetPlayer(HeroPlayer ph, AbilitiesPlayer pa)
+        {
+            var hid = ph?.Id ?? 0;
+            this.heroes.TryGetValue(hid, out Hero hero);
+            var heroImage = await GetCachedImage(hero?.ImageIcon ?? String.Empty);
+
+            var a1 = pa?.Ability0;
+            var a2 = pa?.Ability1;
+            var a3 = pa?.Ability2;
+            var a4 = pa?.Ability3;
+            var a5 = pa?.Ability4;
+            var a6 = pa?.Ability5;
+
+            var abilities = new List<Tuple<Bitmap, bool>>();
+            if(this.abilities.TryGetValue(a1?.Name ?? String.Empty, out Ability v1))
+            {
+                var img = await GetCachedImage(v1.Image);
+                if(img is not null)
+                {
+                    abilities.Add(Tuple.Create(img, a1.Level > 0));
+                }
+            }
+                
+
+            if (this.abilities.TryGetValue(a2?.Name ?? String.Empty, out Ability v2))
+            {
+                var img = await GetCachedImage(v2.Image);
+                if (img is not null)
+                {
+                    abilities.Add(Tuple.Create(img, a2.Level > 0));
+                }
+            }
+                
+
+            if (this.abilities.TryGetValue(a3?.Name ?? String.Empty, out Ability v3))
+            {
+                var img = await GetCachedImage(v3.Image);
+                if (img is not null)
+                {
+                    abilities.Add(Tuple.Create(img, a3.Level > 0));
+                }
+            }
+
+            if (this.abilities.TryGetValue(a4?.Name ?? String.Empty, out Ability v4))
+            {
+                var img = await GetCachedImage(v4.Image);
+                if (img is not null)
+                {
+                    abilities.Add(Tuple.Create(img, a4.Level > 0));
+                }
+            }
+
+            if (this.abilities.TryGetValue(a5?.Name ?? String.Empty, out Ability v5))
+            {
+                var img = await GetCachedImage(v5.Image);
+                if (img is not null)
+                {
+                    abilities.Add(Tuple.Create(img, a5.Level > 0));
+                }
+            }
+
+            if (this.abilities.TryGetValue(a6?.Name ?? String.Empty, out Ability v6))
+            {
+                var img = await GetCachedImage(v6.Image);
+                if (img is not null)
+                {
+                    abilities.Add(Tuple.Create(img, a6.Level > 0));
+                }
+            }
+
+            return Tuple.Create(heroImage, abilities);
         }
 
         private async Task<Bitmap> GetCachedImage(string url)
         {
-            try
+            var cache = Policy.CacheAsync<Bitmap>(this.cacheProvider, TimeSpan.FromMinutes(60));
+            var fallback = Policy<Bitmap>.Handle<Exception>().FallbackAsync<Bitmap>(default(Bitmap));
+            var wrap = Policy.WrapAsync(fallback, cache);
+
+            var ctx = new Context(url);
+            var result = await wrap.ExecuteAsync(async (_) =>
             {
-                var ctx = new Context(url);
-
-                var result = await this.cachePolicy.ExecuteAsync(async (_) =>
-                {
-                    var data = await httpClient.GetByteArrayAsync(url);
-                    return data;
-                }, ctx);
-
-                using var ms = new MemoryStream(result);
+                var data = await httpClient.GetByteArrayAsync(url);
+                using var ms = new MemoryStream(data);
                 return new Bitmap(ms);
-            }
-            catch (Exception)
-            {
-                return new Bitmap(0, 0);
-            }
-        }
+            }, ctx);
 
-        private async Task<(Bitmap, Bitmap, Bitmap)> GetUpgradesOverlays()
-        {
-            var both = await GetCachedImage("https://hyperstone.highgroundvision.com/images/aghs/aghs_both.png");
-            var shard = await GetCachedImage("https://hyperstone.highgroundvision.com/images/aghs/aghs_shard.png");
-            var scepter = await GetCachedImage("https://hyperstone.highgroundvision.com/images/aghs/aghs_scepter.png");
-            return (both, shard, scepter);
+            return result;
         }
     }
 }

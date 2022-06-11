@@ -1,3 +1,4 @@
+﻿using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
@@ -10,26 +11,38 @@ namespace HGV.Euls.Server.Functions
 {
     public class OverlayFunction
     {
-        [FunctionName("Overlay")]
-        public async Task<IActionResult> Overlay(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "overlay/{token}")] HttpRequest req,
-            string token,
-            [Blob("drafts/{token}.png", FileAccess.Read)] Stream stream,
+        [FunctionName("OverlayRadiant")]
+        public IActionResult OverlayRadiant(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "overlay/radiant/{token}")] HttpRequest req, string token,
+            [Blob("drafts/radiant-{token}.png", FileAccess.Read)] BlobClient client,
             ILogger log)
         {
-            using var ms = new MemoryStream();
-            await stream.CopyToAsync(ms);
-            return new FileContentResult(ms.ToArray(), "image/png") { FileDownloadName = "draft.png" };
+            if (client == null)
+                return new BadRequestResult();
+
+            if (!client.CanGenerateSasUri)
+                return new BadRequestResult();
+
+            // 
+
+            var uri = client.GenerateSasUri(Azure.Storage.Sas.BlobSasPermissions.Read, expiresOn: System.DateTimeOffset.UtcNow.AddHours(1));
+            return new ContentResult { Content = $"<html><head><META HTTP-EQUIV=\"refresh\" CONTENT=\"10\"><style>body {{ background - color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }}</style></head><body><img src=\"{uri}\" /></body></html>", ContentType = "text/html" };
         }
 
-        [FunctionName("Layout")]
-        public async Task<IActionResult> Layout(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "layout/{token}")] HttpRequest req,
-            string token,
+        [FunctionName("OverlayDire")]
+        public IActionResult OverlayDire(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "overlay/dire/{token}")] HttpRequest req, string token,
+            [Blob("drafts/dire-{token}.png", FileAccess.Read)] BlobClient client,
             ILogger log)
         {
-            var url = $"/api/overlay/{token}";
-            return new ContentResult { Content = $"<html><head></head><body><img src=\"{url}\" /></body></html>", ContentType = "text/html" };
+            if (client == null)
+                return new BadRequestResult();
+
+            if (!client.CanGenerateSasUri)
+                return new BadRequestResult();
+
+            var uri = client.GenerateSasUri(Azure.Storage.Sas.BlobSasPermissions.Read, expiresOn: System.DateTimeOffset.UtcNow.AddHours(1));
+            return new ContentResult { Content = $"<html><head><META HTTP-EQUIV=\"refresh\" CONTENT=\"10\"><style>body {{ background - color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }}</style></head><body><img src=\"{uri}\" /></body></html>", ContentType = "text/html" };
         }
     }
 }
