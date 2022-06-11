@@ -46,8 +46,9 @@ namespace HGV.Euls.Server
         {
             try
             {
-                await DrawOverlayRadiantImages(root, radiant);
-                await DrawOverlayDireImages(root, dire);
+                var t1 = DrawOverlayRadiantImages(root, radiant);
+                var t2 = DrawOverlayDireImages(root, dire);
+                await Task.WhenAll(t1, t2);
             }
             catch(Exception ex)
             {
