@@ -89,14 +89,15 @@ namespace HGV.Euls.Server
 
                 try
                 {
-                    var max = heroes.Max(_ => _.Item2.Count);
-                    var offset = 500 - ((max * this.size.Width) + max + this.size.Width);
+                    //var max = heroes.Max(_ => _.Item2.Count);
+                    //var offset = 500 - ((max * this.size.Width) + max + this.size.Width);
                     var y = 1;
                     foreach (var pair in heroes)
                     {
-                        var x = offset;
+                        //var x = offset;
+                        var x = 500 - ((pair.Item2.Count * this.size.Width) + pair.Item2.Count + this.size.Width);
 
-                        if(pair.Item1 is not null)
+                        if (pair.Item1 is not null)
                         {
                             g.DrawImage(pair.Item1, new Rectangle(new Point(x, y), size));
                         }
@@ -143,24 +144,16 @@ namespace HGV.Euls.Server
             var a5 = pa?.Ability4;
             var a6 = pa?.Ability5;
 
-            var blank = await GetCachedImage("https://hyperstone.highgroundvision.com/images/abilities/5002.png");
+            // var blank = await GetCachedImage("https://hyperstone.highgroundvision.com/images/abilities/5002.png");
 
             var abilities = new List<Tuple<Bitmap, bool, bool>>();
-            if(this.abilities.TryGetValue(a1?.Name ?? String.Empty, out Ability v1))
+            if (this.abilities.TryGetValue(a1?.Name ?? String.Empty, out Ability v1))
             {
                 var img = await GetCachedImage(v1.Image);
-                if(img is not null)
+                if (img is not null)
                 {
                     abilities.Add(Tuple.Create(img, a1.Level > 0, a1.Ultimate ?? false));
                 }
-                else
-                {
-                    abilities.Add(Tuple.Create(blank, false, false));
-                }
-            }
-            else
-            {
-                abilities.Add(Tuple.Create(blank, false, false));
             }
 
             if (this.abilities.TryGetValue(a2?.Name ?? String.Empty, out Ability v2))
@@ -170,14 +163,6 @@ namespace HGV.Euls.Server
                 {
                     abilities.Add(Tuple.Create(img, a2.Level > 0, a2.Ultimate ?? false));
                 }
-                else
-                {
-                    abilities.Add(Tuple.Create(blank, false, false));
-                }
-            }
-            else
-            {
-                abilities.Add(Tuple.Create(blank, false, false));
             }
 
             if (this.abilities.TryGetValue(a3?.Name ?? String.Empty, out Ability v3))
@@ -187,14 +172,6 @@ namespace HGV.Euls.Server
                 {
                     abilities.Add(Tuple.Create(img, a3.Level > 0, a3.Ultimate ?? false));
                 }
-                else
-                {
-                    abilities.Add(Tuple.Create(blank, false, false));
-                }
-            }
-            else
-            {
-                abilities.Add(Tuple.Create(blank, false, false));
             }
 
             if (this.abilities.TryGetValue(a4?.Name ?? String.Empty, out Ability v4))
@@ -204,14 +181,6 @@ namespace HGV.Euls.Server
                 {
                     abilities.Add(Tuple.Create(img, a4.Level > 0, a4.Ultimate ?? false));
                 }
-                else
-                {
-                    abilities.Add(Tuple.Create(blank, false, false));
-                }
-            }
-            else
-            {
-                abilities.Add(Tuple.Create(blank, false, false));
             }
 
             if (this.abilities.TryGetValue(a5?.Name ?? String.Empty, out Ability v5))
@@ -221,14 +190,6 @@ namespace HGV.Euls.Server
                 {
                     abilities.Add(Tuple.Create(img, a5.Level > 0, a5.Ultimate ?? false));
                 }
-                else
-                {
-                    abilities.Add(Tuple.Create(blank, false, false));
-                }
-            }
-            else
-            {
-                abilities.Add(Tuple.Create(blank, false, false));
             }
 
             if (this.abilities.TryGetValue(a6?.Name ?? String.Empty, out Ability v6))
@@ -238,20 +199,136 @@ namespace HGV.Euls.Server
                 {
                     abilities.Add(Tuple.Create(img, a6.Level > 0, a6.Ultimate ?? false));
                 }
-                else
-                {
-                    abilities.Add(Tuple.Create(blank, false, false));
-                }
-            }
-            else
-            {
-                abilities.Add(Tuple.Create(blank, false, false));
             }
 
             var query = abilities.OrderBy(_ => _.Item3).ToList();
 
             return Tuple.Create(heroImage, query);
         }
+
+
+        //private async Task<Pair> GetPlayer(HeroPlayer ph, AbilitiesPlayer pa)
+        //{
+        //    var hid = ph?.Id ?? 0;
+        //    this.heroes.TryGetValue(hid, out Hero hero);
+        //    var heroImage = await GetCachedImage(hero?.ImageIcon ?? String.Empty);
+
+        //    var a1 = pa?.Ability0;
+        //    var a2 = pa?.Ability1;
+        //    var a3 = pa?.Ability2;
+        //    var a4 = pa?.Ability3;
+        //    var a5 = pa?.Ability4;
+        //    var a6 = pa?.Ability5;
+
+        //    var blank = await GetCachedImage("https://hyperstone.highgroundvision.com/images/abilities/5002.png");
+
+        //    var abilities = new List<Tuple<Bitmap, bool, bool>>();
+        //    if(this.abilities.TryGetValue(a1?.Name ?? String.Empty, out Ability v1))
+        //    {
+        //        var img = await GetCachedImage(v1.Image);
+        //        if(img is not null)
+        //        {
+        //            abilities.Add(Tuple.Create(img, a1.Level > 0, a1.Ultimate ?? false));
+        //        }
+        //        else
+        //        {
+        //            abilities.Add(Tuple.Create(blank, false, false));
+        //        }
+        //    }
+        //    else
+        //    {
+        //        abilities.Add(Tuple.Create(blank, false, false));
+        //    }
+
+        //    if (this.abilities.TryGetValue(a2?.Name ?? String.Empty, out Ability v2))
+        //    {
+        //        var img = await GetCachedImage(v2.Image);
+        //        if (img is not null)
+        //        {
+        //            abilities.Add(Tuple.Create(img, a2.Level > 0, a2.Ultimate ?? false));
+        //        }
+        //        else
+        //        {
+        //            abilities.Add(Tuple.Create(blank, false, false));
+        //        }
+        //    }
+        //    else
+        //    {
+        //        abilities.Add(Tuple.Create(blank, false, false));
+        //    }
+
+        //    if (this.abilities.TryGetValue(a3?.Name ?? String.Empty, out Ability v3))
+        //    {
+        //        var img = await GetCachedImage(v3.Image);
+        //        if (img is not null)
+        //        {
+        //            abilities.Add(Tuple.Create(img, a3.Level > 0, a3.Ultimate ?? false));
+        //        }
+        //        else
+        //        {
+        //            abilities.Add(Tuple.Create(blank, false, false));
+        //        }
+        //    }
+        //    else
+        //    {
+        //        abilities.Add(Tuple.Create(blank, false, false));
+        //    }
+
+        //    if (this.abilities.TryGetValue(a4?.Name ?? String.Empty, out Ability v4))
+        //    {
+        //        var img = await GetCachedImage(v4.Image);
+        //        if (img is not null)
+        //        {
+        //            abilities.Add(Tuple.Create(img, a4.Level > 0, a4.Ultimate ?? false));
+        //        }
+        //        else
+        //        {
+        //            abilities.Add(Tuple.Create(blank, false, false));
+        //        }
+        //    }
+        //    else
+        //    {
+        //        abilities.Add(Tuple.Create(blank, false, false));
+        //    }
+
+        //    if (this.abilities.TryGetValue(a5?.Name ?? String.Empty, out Ability v5))
+        //    {
+        //        var img = await GetCachedImage(v5.Image);
+        //        if (img is not null)
+        //        {
+        //            abilities.Add(Tuple.Create(img, a5.Level > 0, a5.Ultimate ?? false));
+        //        }
+        //        else
+        //        {
+        //            abilities.Add(Tuple.Create(blank, false, false));
+        //        }
+        //    }
+        //    else
+        //    {
+        //        abilities.Add(Tuple.Create(blank, false, false));
+        //    }
+
+        //    if (this.abilities.TryGetValue(a6?.Name ?? String.Empty, out Ability v6))
+        //    {
+        //        var img = await GetCachedImage(v6.Image);
+        //        if (img is not null)
+        //        {
+        //            abilities.Add(Tuple.Create(img, a6.Level > 0, a6.Ultimate ?? false));
+        //        }
+        //        else
+        //        {
+        //            abilities.Add(Tuple.Create(blank, false, false));
+        //        }
+        //    }
+        //    else
+        //    {
+        //        abilities.Add(Tuple.Create(blank, false, false));
+        //    }
+
+        //    var query = abilities.OrderBy(_ => _.Item3).ToList();
+
+        //    return Tuple.Create(heroImage, query);
+        //}
 
         private async Task<Bitmap> GetCachedImage(string url)
         {
