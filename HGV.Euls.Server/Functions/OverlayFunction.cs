@@ -27,9 +27,8 @@ namespace HGV.Euls.Server.Functions
             if (token == "abc123")
                 return new BadRequestResult();
 
-            var refresh = "10";
             var query = req.GetQueryParameterDictionary();
-            query.TryGetValue("refresh", out refresh);
+            var refresh = query.ContainsKey("refresh") ? query["refresh"] : "10";
 
             var uri = client.GenerateSasUri(Azure.Storage.Sas.BlobSasPermissions.Read, expiresOn: System.DateTimeOffset.UtcNow.AddHours(1));
             return new ContentResult { Content = $"<html><head><META HTTP-EQUIV=\"refresh\" CONTENT=\"{refresh}\"><style>body {{ background - color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }}</style></head><body><img src=\"{uri}\" /></body></html>", ContentType = "text/html" };
@@ -50,9 +49,8 @@ namespace HGV.Euls.Server.Functions
             if (token == "abc123")
                 return new BadRequestResult();
 
-            var refresh = "10";
             var query = req.GetQueryParameterDictionary();
-            query.TryGetValue("refresh", out refresh);
+            var refresh = query.ContainsKey("refresh") ? query["refresh"] : "10";
 
             var uri = client.GenerateSasUri(Azure.Storage.Sas.BlobSasPermissions.Read, expiresOn: System.DateTimeOffset.UtcNow.AddHours(1));
             return new ContentResult { Content = $"<html><head><META HTTP-EQUIV=\"refresh\" CONTENT=\"{refresh}\"><style>body {{ background - color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }}</style></head><body><img src=\"{uri}\" /></body></html>", ContentType = "text/html" };
